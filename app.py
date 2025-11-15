@@ -9,8 +9,8 @@ st.set_page_config(page_title="Travel Aggregator Analysis", layout="wide")
 # -------------------------
 @st.cache_data
 def load_data():
-    bookings = pd.read_csv("bookings.csv")
-    sessions = pd.read_csv("sessions.csv")
+    bookings = pd.read_csv("Bookings.csv")
+    sessions = pd.read_csv("Sessions.csv")
     return bookings, sessions
 
 
