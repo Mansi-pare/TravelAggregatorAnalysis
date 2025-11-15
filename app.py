@@ -1,159 +1,159 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import seaborn as sns
 
-# -----------------------------------------
-# Streamlit Page Config
-# -----------------------------------------
 st.set_page_config(page_title="Travel Aggregator Analysis", layout="wide")
-st.title("✈️ Travel Aggregator Data Analysis Dashboard")
 
-st.markdown("Analyze bookings and sessions data interactively. Use filters, search tools, and calculators.")
-
-# -----------------------------------------
-# Load Data
-# -----------------------------------------
+# -------------------------
+# LOAD DATA
+# -------------------------
 @st.cache_data
 def load_data():
-    bookings_df = pd.read_csv("Bookings.csv")
-    sessions_df = pd.read_csv("Sessions.csv")
-    return bookings_df, sessions_df
+    bookings = pd.read_csv("bookings.csv")
+    sessions = pd.read_csv("sessions.csv")
+    return bookings, sessions
 
-try:
-    bookings_df, sessions_df = load_data()
-    st.success("Data loaded successfully!")
-except Exception as e:
-    st.error(f"Error loading data: {e}")
-    st.stop()
 
-# -----------------------------------------
-# Show raw data (Expandable)
-# -----------------------------------------
-with st.expander("📘 View Raw Bookings Data"):
-    st.dataframe(bookings_df)
+bookings_df, sessions_df = load_data()
 
-with st.expander("📗 View Raw Sessions Data"):
-    st.dataframe(sessions_df)
+st.title("✈️ Travel Aggregator Data Analysis Dashboard")
+st.write("Explore customer bookings, sessions, trends, insights, and KPIs.")
 
-st.write("---")
+# -------------------------
+# SIDEBAR FILTERS
+# -------------------------
+st.sidebar.header("🔎 Filters")
 
-# ======================================================
-# 1️⃣ CUSTOMER LOOKUP TOOL
-# ======================================================
-st.header("🔍 Customer Lookup Tool")
+city_filter = st.sidebar.multiselect(
+    "Select Destination City (to_city)",
+    options=sorted(bookings_df["to_city"].unique()),
+    default=None
+)
 
-customer_id_input = st.text_input("Enter Customer ID:")
+service_filter = st.sidebar.multiselect(
+    "Select Service Name",
+    options=sorted(bookings_df["service_name"].unique()),
+    default=None
+)
 
-if customer_id_input:
-    customer_data = bookings_df[bookings_df["customer_id"] == customer_id_input]
+filtered_bookings = bookings_df.copy()
 
-    if not customer_data.empty:
-        st.success("Customer found!")
-        st.subheader("📄 Customer Booking Details")
-        st.dataframe(customer_data)
+if city_filter:
+    filtered_bookings = filtered_bookings[filtered_bookings["to_city"].isin(city_filter)]
 
-        total_spent = customer_data["INR_Amount"].sum()
-        st.metric("Total Amount Spent (INR)", total_spent)
+if service_filter:
+    filtered_bookings = filtered_bookings[filtered_bookings["service_name"].isin(service_filter)]
+
+
+# -------------------------
+# OVERVIEW STATISTICS
+# -------------------------
+st.header("📊 Key Performance Indicators (KPIs)")
+
+col1, col2, col3 = st.columns(3)
+
+with col1:
+    st.metric("Total Bookings", len(filtered_bookings))
+
+with col2:
+    st.metric("Total Revenue (INR)", f"{filtered_bookings['INR_Amount'].sum():,.2f}")
+
+with col3:
+    st.metric("Average Ticket Price", f"{filtered_bookings['INR_Amount'].mean():,.2f}")
+
+
+# -------------------------
+# CUSTOMER BOOKING SEARCH
+# -------------------------
+st.header("🔍 Search Customer Booking Details")
+
+search_customer = st.text_input("Enter Customer ID to Search")
+
+if search_customer:
+    result = bookings_df[bookings_df["customer_id"].astype(str) == search_customer]
+
+    if not result.empty:
+        st.success(f"Found {len(result)} bookings for Customer ID: {search_customer}")
+        st.dataframe(result)
     else:
-        st.error("No data found for this customer ID.")
+        st.error("No bookings found for this Customer ID.")
 
-st.write("---")
 
-# ======================================================
-# 2️⃣ BOOKING COST ESTIMATOR
-# ======================================================
-st.header("💰 Booking Cost Estimator")
+# -------------------------
+# VISUALIZATIONS
+# -------------------------
+st.header("📈 Visual Insights")
 
-colA, colB, colC = st.columns(3)
-
-distance_km = colA.number_input("Distance (km)", min_value=1, value=500)
-passengers = colB.number_input("Number of Passengers", min_value=1, value=1)
-service_type = colC.selectbox("Service Type", ["Flight", "Train", "Bus"])
-
-# Base rates per km
-rates = {"Flight": 6.5, "Train": 2.2, "Bus": 1.4}
-
-if st.button("Calculate Estimated Cost"):
-    cost = distance_km * rates[service_type] * passengers
-    st.success(f"Estimated Booking Cost: **₹{round(cost, 2)}**")
-
-st.write("---")
-
-# ======================================================
-# 3️⃣ DYNAMIC FILTERS
-# ======================================================
-st.header("🎛 Explore Bookings with Dynamic Filters")
-
-cities = sorted(bookings_df["to_city"].dropna().unique())
-countries = sorted(bookings_df["to_country"].dropna().unique())
-
+# 1. Device Type Chart (corrected — uses bookings_df)
 col1, col2 = st.columns(2)
-selected_city = col1.selectbox("Select Destination City", ["All"] + cities)
-selected_country = col2.selectbox("Select Destination Country", ["All"] + countries)
 
-filtered_df = bookings_df.copy()
+with col1:
+    st.subheader("📱 Device Type Used (Bookings Data)")
 
-if selected_city != "All":
-    filtered_df = filtered_df[filtered_df["to_city"] == selected_city]
+    fig1, ax1 = plt.subplots()
+    bookings_df["device_type_used"].value_counts().plot(kind="pie", autopct="%1.1f%%", ax=ax1)
+    ax1.set_ylabel("")
+    st.pyplot(fig1)
 
-if selected_country != "All":
-    filtered_df = filtered_df[filtered_df["to_country"] == selected_country]
+# 2. Service Usage Chart
+with col2:
+    st.subheader("🛎️ Service Usage Distribution")
 
-st.subheader("📌 Filtered Results")
-st.dataframe(filtered_df)
+    fig2, ax2 = plt.subplots()
+    bookings_df["service_name"].value_counts().plot(kind="bar", ax=ax2)
+    ax2.set_xlabel("Service Name")
+    ax2.set_ylabel("Count")
+    st.pyplot(fig2)
 
+
+# 3. Booking Trend Over Time
+st.subheader("📅 Bookings Over Time")
+
+bookings_df["booking_time"] = pd.to_datetime(bookings_df["booking_time"])
+bookings_time_series = bookings_df.groupby(bookings_df["booking_time"].dt.date).size()
+
+fig3, ax3 = plt.subplots()
+bookings_time_series.plot(ax=ax3)
+ax3.set_xlabel("Date")
+ax3.set_ylabel("Number of Bookings")
+st.pyplot(fig3)
+
+
+# 4. INR Amount vs Distance
+st.subheader("💸 INR Amount vs Distance (km)")
+
+fig4, ax4 = plt.subplots()
+ax4.scatter(bookings_df["distance_km"], bookings_df["INR_Amount"])
+ax4.set_xlabel("Distance (km)")
+ax4.set_ylabel("INR Amount")
+st.pyplot(fig4)
+
+
+# -------------------------
+# SESSION ANALYSIS
+# -------------------------
+st.header("🧭 User Session Analysis")
+
+st.write(f"Total Sessions: {len(sessions_df)}")
+
+st.write("### Sessions Data Overview")
+st.dataframe(sessions_df.head())
+
+
+# -------------------------
+# DAYS TO DEPARTURE ANALYSIS
+# -------------------------
+st.header("⏳ Impact of Days-to-Departure on Fare")
+
+fig5, ax5 = plt.subplots()
+ax5.scatter(bookings_df["days_to_departure"], bookings_df["INR_Amount"])
+ax5.set_xlabel("Days to Departure")
+ax5.set_ylabel("INR Amount")
+st.pyplot(fig5)
+
+
+# -------------------------
+# END OF APP
+# -------------------------
 st.write("---")
-
-# ======================================================
-# 4️⃣ AUTO INSIGHTS
-# ======================================================
-st.header("✨ Automatic Insights")
-
-# Prepare sessions_df hour column
-sessions_df["search_time"] = pd.to_datetime(sessions_df["search_time"], errors='coerce')
-sessions_df["hour"] = sessions_df["search_time"].dt.hour
-
-try:
-    most_city = bookings_df["to_city"].value_counts().idxmax()
-    avg_distance = round(bookings_df["distance_km"].mean(), 2)
-    highest_pay_user = bookings_df.groupby("customer_id")["INR_Amount"].sum().idxmax()
-    peak_hour = sessions_df["hour"].value_counts().idxmax()
-except:
-    most_city = avg_distance = highest_pay_user = peak_hour = "Not available"
-
-st.markdown(f"""
-- 🌍 **Most booked destination city:** {most_city}  
-- ⏰ **Peak session hour:** {peak_hour}:00  
-- 🚗 **Average travel distance:** {avg_distance} km  
-- 👤 **Highest paying customer:** {highest_pay_user}  
-""")
-
-st.write("---")
-
-# ======================================================
-# 5️⃣ VISUALIZATIONS
-# ======================================================
-st.header("📊 Visualizations")
-
-# --- Bookings by Country ---
-st.subheader("📌 Bookings by Destination Country")
-fig1, ax1 = plt.subplots()
-bookings_df["to_country"].value_counts().plot(kind="bar", ax=ax1)
-ax1.set_title("Bookings by Country")
-st.pyplot(fig1)
-
-# --- Session Distribution by Hour ---
-st.subheader("⏰ Sessions by Hour of Day")
-fig2, ax2 = plt.subplots()
-sessions_df["hour"].value_counts().sort_index().plot(kind="bar", ax=ax2)
-ax2.set_xlabel("Hour of Day")
-ax2.set_ylabel("Number of Sessions")
-ax2.set_title("Session Activity by Hour")
-st.pyplot(fig2)
-
-# --- Top Destination Cities ---
-st.subheader("🏙 Top 10 Destination Cities")
-st.table(bookings_df["to_city"].value_counts().head(10))
-
-st.write("✔ Dashboard Loaded Successfully")
+st.write("Built by Mansi Pare 🌟 | Travel Aggregator Internship Project Dashboard")
